@@ -1,4 +1,5 @@
-﻿using CollegeApp.Modal;
+﻿using CollegeApp.Data;
+using CollegeApp.Modal;
 using Microsoft.AspNetCore.JsonPatch;
 using Microsoft.AspNetCore.Mvc;
 using System.Reflection;
@@ -10,9 +11,11 @@ namespace CollegeApp.Controllers
     public class StudentController: ControllerBase
     {
         private readonly ILogger<StudentController> _logger;
-        public StudentController(ILogger<StudentController> logger)
+        private readonly CollegeDb _dbContext;
+        public StudentController(ILogger<StudentController> logger, CollegeDb dbContext)
         {
             _logger = logger;
+            _dbContext = dbContext;
                 
         }
         [HttpGet]
@@ -25,17 +28,17 @@ namespace CollegeApp.Controllers
 
             //var students = new List<StudentDTO>();
 
-            //foreach (var item in CollegeRepository.Students)
+            //foreach (var item in _dbContext.Students)
             //{
             //    StudentDTO obj = new StudentDTO()
 
-            var students = CollegeRepository.Students.Select(item => new StudentDTO()
+            var students = _dbContext.Students.Select(item => new StudentDTO()
             {
                 Id = item.Id,
                 StudentName = item.StudentName,
                 Address = item.Address,
-                StudentEmail = item.StudentEmail,
-            });
+                StudentEmail = item.Email,
+            }).ToList();
                 //students.Add(obj);
             //}
             //Ok - 200 - success
@@ -49,7 +52,7 @@ namespace CollegeApp.Controllers
 
         public ActionResult<StudentDTO> GetStudentById(int id)
         {
-            var student = CollegeRepository.Students.Where(n => n.Id == id).FirstOrDefault();
+            var student = _dbContext.Students.Where(n => n.Id == id).FirstOrDefault();
             //Ok - 400 - BadRequest
 
             if (id <= 0)
@@ -67,7 +70,7 @@ namespace CollegeApp.Controllers
                 Id=student.Id,
                 StudentName = student.StudentName,
                 Address = student.Address,
-                StudentEmail = student.StudentEmail,
+                StudentEmail = student.Email,
             };
             return Ok(studentDTO);
         }
@@ -80,20 +83,21 @@ namespace CollegeApp.Controllers
 
         public ActionResult<StudentDTO> GetStudentByName(string name)
         {
-            var student = CollegeRepository.Students.Where(n => n.StudentName == name).FirstOrDefault();
+            var student = _dbContext.Students.Where(n => n.StudentName == name).FirstOrDefault();
             //Ok - 400 - BadRequest
 
             if (string.IsNullOrEmpty(name))
                 BadRequest();
-            if (student == null) NotFound();
+            if (student == null) return NotFound();
             var studentDTO = new StudentDTO()
             {
                 Id = student.Id,
                 StudentName = student.StudentName,
                 Address = student.Address,
-                StudentEmail = student.StudentEmail,
+                StudentEmail = student.Email,
+                DOB = student.DOB,
             };
-            return Ok(student);
+            return Ok(studentDTO);
         }
         
         [HttpDelete("{id:int}")]
@@ -103,9 +107,10 @@ namespace CollegeApp.Controllers
     
         public ActionResult<bool> DeleteStudentById(int id)
         {
-            var student = CollegeRepository.Students.Where(n=>n.Id == id).FirstOrDefault();
+            var student = _dbContext.Students.Where(n=>n.Id == id).FirstOrDefault();
             if(student == null) return NotFound();
-            CollegeRepository.Students.Remove(student);
+            _dbContext.Students.Remove(student);
+            _dbContext.SaveChanges();
 
             return Ok(true);
         }
@@ -119,16 +124,16 @@ namespace CollegeApp.Controllers
         public ActionResult<StudentDTO> CreateStudent([FromBody]StudentDTO model)
         {
             if (model == null) return BadRequest();
-            int newId = CollegeRepository.Students.LastOrDefault().Id + 1;
 
             Student student = new Student
             {
-                Id = newId,
-                StudentEmail = model.StudentEmail,
+                Email = model.StudentEmail,
                 StudentName = model.StudentName,
-                Address = model.Address
+                Address = model.Address,
+                DOB = model.DOB,
             };
-            CollegeRepository.Students.Add(student);
+            _dbContext.Students.Add(student);
+            _dbContext.SaveChanges();
             model.Id = student.Id;
 
             return CreatedAtRoute("GetStudentById", new {id = model.Id}, model);
@@ -147,12 +152,12 @@ namespace CollegeApp.Controllers
         {
             if (model == null || model.Id <= 0) return BadRequest();
 
-            var existingStudent = CollegeRepository.Students.Where(s=>s.Id == model.Id).FirstOrDefault();
+            var existingStudent = _dbContext.Students.Where(s=>s.Id == model.Id).FirstOrDefault();
             if (existingStudent == null) return NotFound();
 
             existingStudent.StudentName = model.StudentName;
             existingStudent.Address = model.Address;
-            existingStudent.StudentEmail = model.StudentEmail;
+            existingStudent.Email = model.StudentEmail;
             return Ok(existingStudent);
 
         }
@@ -167,15 +172,16 @@ namespace CollegeApp.Controllers
         {
             if (patchDocument == null || id <= 0) return BadRequest();
 
-            var existingStudent = CollegeRepository.Students.Where(s=>s.Id == id).FirstOrDefault();
+            var existingStudent = _dbContext.Students.Where(s=>s.Id == id).FirstOrDefault();
             if (existingStudent == null) return NotFound();
 
             var studentDTO = new StudentDTO
             {
                 Id = existingStudent.Id,
-                StudentEmail = existingStudent.StudentEmail,
+                StudentEmail = existingStudent.Email,
                 StudentName = existingStudent.StudentName,
                 Address = existingStudent.Address,
+                DOB = existingStudent.DOB,
             };
 
             patchDocument.ApplyTo(studentDTO, ModelState);
@@ -184,7 +190,8 @@ namespace CollegeApp.Controllers
 
             existingStudent.StudentName = studentDTO.StudentName;
             existingStudent.Address = studentDTO.Address;
-            existingStudent.StudentEmail = studentDTO.StudentEmail;
+            existingStudent.Email = studentDTO.StudentEmail;
+            _dbContext.Students.Add(existingStudent);
             return Ok(existingStudent);
 
         }

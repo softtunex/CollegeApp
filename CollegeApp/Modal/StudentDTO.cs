@@ -15,8 +15,7 @@ namespace CollegeApp.Modal
         public string StudentEmail { get; set; }
         [Required]
         public string Address { get; set; }
+        public string DOB { get; set; }
 
-        [DateCheck]
-        public DateTime admissionDate { get; set; }
     }
 }
